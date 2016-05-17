@@ -3,8 +3,6 @@ defmodule Sturm.PullCoordinator do
 
   @type request :: any
 
-  @default_name_spec :pull_coordinator_default_name_spec
-
   @spec start_global_link(term) :: GenServer.on_start
   def start_global_link(name) do
     case GenServer.start(Sturm.PullCoordinator, {:global, name}, name: {:via, Sturm.PullCoordinatorGlobalNaming, name}) do
@@ -23,16 +21,8 @@ defmodule Sturm.PullCoordinator do
     GenServer.cast(namespec, {:worker_available, worker_spec})
   end
 
-  @spec worker_available(%Sturm.PullWorkerDefinition{}) :: :ok
-  def worker_available(worker_spec) do
-    GenServer.cast(@default_name_spec, {:worker_available, worker_spec})
-  end
-
   @spec request(GenServer.name, request) :: :ok
   def request(namespec, req), do: GenServer.cast(namespec, {:request, req})
-
-  @spec request(request) :: :ok
-  def request(req), do: GenServer.cast(@default_name_spec, {:request, req})
 
   def init(namespec), do: {:ok, {namespec, :queue.new(), :queue.new()}}
 
@@ -102,7 +92,7 @@ defmodule Sturm.PullCoordinator do
      Enum.map(pairings,
        fn(p) ->
          {workerspec, r} = p
-         Sturm.PullWorkerSpec.cast_worker(workerspec, namespec, r)
+         Sturm.PullWorkerDefinition.cast_worker(workerspec, namespec, r)
        end
      )
   end
