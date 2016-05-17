@@ -22,8 +22,8 @@ defmodule Sturm.TopologyDsl do
   defp create_component_spec(component) do
     case component do
       %Sturm.SourceDef{outs: outs, spec: {name, mod, opts}} -> source_def(name,mod,opts,outs)
-      %Sturm.SinkDef{in_source: in_source, spec: {name, mod, opts}} -> sink_def(name,mod,opts,in_source)
-      %Sturm.WorkerDef{in_source: in_source, outs: outs, spec: {name, mod, opts}} -> worker_def(name, mod, opts, in_source, outs)
+      %Sturm.SinkDef{spec: {name, mod, opts}} -> sink_def(name,mod,opts)
+      %Sturm.WorkerDef{outs: outs, spec: {name, mod, opts}} -> worker_def(name, mod, opts, outs)
     end
   end
 
@@ -59,14 +59,14 @@ defmodule Sturm.TopologyDsl do
     %Sturm.WorkerDef{in_source: in_source, outs: outs, spec: {name, mod, opts}}
   end
 
-  defp worker_def(name, mod, opts, in_coordinator, emit_destination) do
-    child_specs = worker_specs(name, mod, opts, in_coordinator, emit_destination)
+  defp worker_def(name, mod, opts, emit_destination) do
+    child_specs = worker_specs(name, mod, opts, emit_destination)
     id = worker_supervisor_name(name)
     Supervisor.Spec.supervisor(Sturm.WorkerSupervisor, [id, child_specs], id: id)
   end
 
-  defp sink_def(name, mod, opts, in_coordinator) do
-    child_specs = sink_specs(name, mod, opts, in_coordinator)
+  defp sink_def(name, mod, opts) do
+    child_specs = sink_specs(name, mod, opts)
     id = worker_supervisor_name(name)
     Supervisor.Spec.supervisor(Sturm.WorkerSupervisor, [id, child_specs], id: id)
   end
@@ -77,37 +77,27 @@ defmodule Sturm.TopologyDsl do
     Supervisor.Spec.supervisor(Sturm.WorkerSupervisor, [id, child_specs], id: id)
   end
 
-  defp sink_specs(name, mod, opts, in_coordinator) do
+  defp sink_specs(name, mod, opts) do
     count = Keyword.get(opts, :workers, :single)
-    in_name = {:global, in_coordinator}
     args = %Sturm.WorkerConfig{:options => opts}
-    case count do
-      :single -> [Supervisor.Spec.worker(mod, [Map.merge(args, %{:worker_id => name})], id: name, shutdown: :brutal_kill)]
-      _ -> Enum.map(Range.new(1, count), fn(x) ->
-            worker_id = worker_with_count(name, x)
-            Supervisor.Spec.worker(mod, [Map.merge(args, %{:worker_id => worker_id})], id: worker_id, shutdown: :brutal_kill) 
-           end)
-    end
+    generate_specs_for_count(count, name, mod, args)
   end
 
   defp source_specs(name, mod, opts, out_destination) do
     count = Keyword.get(opts, :workers, :single)
     out_names = Enum.map(out_destination, fn(x) -> {:global, x} end)
     args = %Sturm.WorkerConfig{:out_coordinators => out_names, :options => opts}
-    case count do
-      :single -> [Supervisor.Spec.worker(mod, [Map.merge(args, %{:worker_id => name})], id: name, shutdown: :brutal_kill)]
-      _ -> Enum.map(Range.new(1, count), fn(x) -> 
-            worker_id = worker_with_count(name, x)
-            Supervisor.Spec.worker(mod, [Map.merge(args, %{:worker_id => worker_id})], id: worker_id, shutdown: :brutal_kill) 
-           end)
-    end
+    generate_specs_for_count(count, name, mod, args)
   end
 
-  defp worker_specs(name, mod, opts, in_coordinator, out_destination) do
+  defp worker_specs(name, mod, opts, out_destination) do
     count = Keyword.get(opts, :workers, :single)
     out_names = Enum.map(out_destination, fn(x) -> {:global, x} end)
-    in_name = {:global, in_coordinator}
     args = %Sturm.WorkerConfig{:out_coordinators => out_names, :options => opts}
+    generate_specs_for_count(count, name, mod, args)
+  end
+
+  def generate_specs_for_count(count, name, mod, args) do
     case count do
       :single -> [Supervisor.Spec.worker(mod, [Map.merge(args, %{:worker_id => name})], id: name, shutdown: :brutal_kill)]
       _ -> Enum.map(Range.new(1, count), fn(x) -> 
