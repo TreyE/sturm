@@ -80,7 +80,7 @@ defmodule Sturm.TopologyDsl do
   defp sink_specs(name, mod, opts, in_source) do
     count = Keyword.get(opts, :workers, :single)
     in_name = {:global, in_source}
-    args = %Sturm.WorkerConfig{:options => opts, :in_source => in_name}
+    args = %Sturm.WorkerConfig{options: opts, in_source: in_name}
     monitor_kind = Keyword.get(opts, :monitor_as, :worker)
     generate_specs_for_count(count, name, mod, args, monitor_kind)
   end
@@ -88,7 +88,7 @@ defmodule Sturm.TopologyDsl do
   defp source_specs(name, mod, opts, out_destination) do
     count = Keyword.get(opts, :workers, :single)
     out_names = Enum.map(out_destination, fn(x) -> {:global, x} end)
-    args = %Sturm.WorkerConfig{:out_coordinators => out_names, :options => opts}
+    args = %Sturm.WorkerConfig{out_coordinators: out_names, options: opts}
     monitor_kind = Keyword.get(opts, :monitor_as, :worker)
     generate_specs_for_count(count, name, mod, args, monitor_kind)
   end
@@ -97,7 +97,7 @@ defmodule Sturm.TopologyDsl do
     count = Keyword.get(opts, :workers, :single)
     in_name = {:global, in_source}
     out_names = Enum.map(out_destination, fn(x) -> {:global, x} end)
-    args = %Sturm.WorkerConfig{:out_coordinators => out_names, :options => opts, :in_source => in_name}
+    args = %Sturm.WorkerConfig{out_coordinators: out_names, options: opts, in_source: in_name}
     monitor_kind = Keyword.get(opts, :monitor_as, :worker)
     generate_specs_for_count(count, name, mod, args, monitor_kind)
   end
