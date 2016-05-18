@@ -12,6 +12,8 @@ defmodule Sturm.PullSink do
     quote do
       using GenServer
 
+      @behaviour Sturm.PullSink
+
       def init(args) do
         init_sink(args.options)
       end

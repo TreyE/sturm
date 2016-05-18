@@ -13,6 +13,8 @@ defmodule Sturm.PullWorker do
     quote do
       using GenServer
 
+      @behaviour Sturm.PullWorker
+
       def init(args) do
         case init_worker(args.options) do
           {:ok, start_state} -> {:ok, %Sturm.WorkState{outs: args.out_coordinators, state: start_state}}
