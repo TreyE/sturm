@@ -15,7 +15,10 @@ defmodule Sturm.PullSink do
       @behaviour Sturm.PullSink
 
       def init(args) do
-        init_sink(args.options)
+        case init_sink(args.options) do
+          {:ok, start_state} -> {:ok, %Sturm.WorkState{state: start_state}}
+          {:stop, reason} -> {:stop, reason}
+        end
       end
 
       def handle_cast({:request, {my_ns, coordinator_ns, req}}, my_state) do
@@ -32,13 +35,6 @@ defmodule Sturm.PullSink do
         new_state
       end
 
-      def emit_records(outs, records, new_state) do
-        Enum.map(outs, fn(o) ->
-          Enum.map(records, fn(r) -> Sturm.PullCoordinator.request(o, r) end)
-        end)
-        new_state
-      end
-
       def cast_request(my_ns, req) do
         GenServer.cast(my_ns, {:request, {my_ns, req.in_source, req.body}})
       end
@@ -46,8 +42,8 @@ defmodule Sturm.PullSink do
       def start_link(args) do
         case GenServer.start_link(__MODULE__, args, name: args.worker_id) do
           {:ok, pid} -> 
-                      Sturm.PullCoordinator.worker_available(args.in_source, %Sturm.PullWorkerDefinition{module: __MODULE__, namespec: pid})
-                      {:ok, pid}
+          Sturm.PullCoordinator.worker_available(args.in_source, %Sturm.PullWorkerDefinition{module: __MODULE__, namespec: pid})
+          {:ok, pid}
           other -> other
         end
       end

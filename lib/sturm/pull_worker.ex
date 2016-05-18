@@ -16,7 +16,6 @@ defmodule Sturm.PullWorker do
       @behaviour Sturm.PullWorker
 
       def init(args) do
-        IO.puts("#{inspect args}")
         case init_worker(args.options) do
           {:ok, start_state} -> {:ok, %Sturm.WorkState{outs: args.out_coordinators, state: start_state}}
           {:stop, reason} -> {:stop, reason}
