@@ -104,10 +104,10 @@ defmodule Sturm.TopologyDsl do
 
   defp generate_specs_for_count(count, name, mod, args, monitor_kind) do
     case count do
-      :single -> [generate_spec_for(mod, Map.merge(args, %{:worker_id => name}), name, monitor_kind)]
+      :single -> [generate_spec_for(mod, Map.merge(args, %{:worker_id => name}), append_to_id(name, "_sup_child"), monitor_kind)]
       _ -> Enum.map(Range.new(1, count), fn(x) -> 
             worker_id = worker_with_count(name, x)
-            generate_spec_for(mod, Map.merge(args, %{:worker_id => worker_id}), name, monitor_kind)
+            generate_spec_for(mod, Map.merge(args, %{:worker_id => worker_id}), append_to_id(worker_id, "_sup_child"), monitor_kind)
            end)
     end
   end
