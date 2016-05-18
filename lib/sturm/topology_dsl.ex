@@ -22,7 +22,7 @@ defmodule Sturm.TopologyDsl do
   defp create_component_spec(component) do
     case component do
       %Sturm.SourceDef{outs: outs, spec: {name, mod, opts}} -> source_def(name,mod,opts,outs)
-      %Sturm.SinkDef{in_source: in_source, spec: {name, mod, opts}} -> sink_def(name,mod,opts, in_source)
+      %Sturm.SinkDef{in_source: in_source, spec: {name, mod, opts}} -> sink_def(name,mod,opts,in_source)
       %Sturm.WorkerDef{in_source: in_source, outs: outs, spec: {name, mod, opts}} -> worker_def(name, mod, opts, in_source, outs)
     end
   end
@@ -44,7 +44,7 @@ defmodule Sturm.TopologyDsl do
   end
 
   def source(name, mod, opts) do
-    outs = Enum.map(Keyword.get(opts, :outs, []), fn(x) -> topo_queue_name(x) end)
+    outs = :lists.map(fn(x) -> topo_queue_name(x) end, Keyword.get(opts, :outs))
     %Sturm.SourceDef{outs: outs, spec: {name, mod, opts}}
   end
 
@@ -54,7 +54,7 @@ defmodule Sturm.TopologyDsl do
   end
 
   def worker(name, mod, opts) do
-    outs = Enum.map(Keyword.get(opts, :outs, []), fn(x) -> topo_queue_name(x) end)
+    outs = :lists.map(fn(x) -> topo_queue_name(x) end, Keyword.get(opts, :outs))
     in_source = topo_queue_name(name)
     %Sturm.WorkerDef{in_source: in_source, outs: outs, spec: {name, mod, opts}}
   end
