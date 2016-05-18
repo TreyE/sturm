@@ -3,6 +3,8 @@ defmodule Sturm.Source do
 
   defmacro __using__(_) do 
     quote do
+      @behaviour Sturm.Source
+
       def emit_result(outs, result) do
         Enum.map(outs, fn(o) ->
           Sturm.PullCoordinator.request(o, result)
