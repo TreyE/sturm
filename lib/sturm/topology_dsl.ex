@@ -5,7 +5,7 @@ defmodule Sturm.TopologyDsl do
     outs = Enum.flat_map(defs, &map_outs/1) |> Enum.uniq |> Enum.sort
     case ins == outs do
       true -> generate_specs(ins, defs)
-      _ -> throw({:routing_mismatch, %{ins: ins, outs: outs}})
+      _ -> {:error, {:routing_mismatch, %{ins: ins, outs: outs}}}
     end
   end
 
@@ -80,32 +80,42 @@ defmodule Sturm.TopologyDsl do
   defp sink_specs(name, mod, opts) do
     count = Keyword.get(opts, :workers, :single)
     args = %Sturm.WorkerConfig{:options => opts}
-    generate_specs_for_count(count, name, mod, args)
+    monitor_kind = Keyword.get(opts, :monitor_as, :worker)
+    generate_specs_for_count(count, name, mod, args, monitor_kind)
   end
 
   defp source_specs(name, mod, opts, out_destination) do
     count = Keyword.get(opts, :workers, :single)
     out_names = Enum.map(out_destination, fn(x) -> {:global, x} end)
     args = %Sturm.WorkerConfig{:out_coordinators => out_names, :options => opts}
-    generate_specs_for_count(count, name, mod, args)
+    monitor_kind = Keyword.get(opts, :monitor_as, :worker)
+    generate_specs_for_count(count, name, mod, args, monitor_kind)
   end
 
   defp worker_specs(name, mod, opts, out_destination) do
     count = Keyword.get(opts, :workers, :single)
     out_names = Enum.map(out_destination, fn(x) -> {:global, x} end)
     args = %Sturm.WorkerConfig{:out_coordinators => out_names, :options => opts}
-    generate_specs_for_count(count, name, mod, args)
+    monitor_kind = Keyword.get(opts, :monitor_as, :worker)
+    generate_specs_for_count(count, name, mod, args, monitor_kind)
   end
 
-  def generate_specs_for_count(count, name, mod, args) do
+  defp generate_specs_for_count(count, name, mod, args, monitor_kind) do
     case count do
-      :single -> [Supervisor.Spec.worker(mod, [Map.merge(args, %{:worker_id => name})], id: name, shutdown: :brutal_kill)]
+      :single -> [generate_spec_for(mod, Map.merge(args, %{:worker_id => name}), name, monitor_kind)]
       _ -> Enum.map(Range.new(1, count), fn(x) -> 
             worker_id = worker_with_count(name, x)
-            Supervisor.Spec.worker(mod, [Map.merge(args, %{:worker_id => worker_id})], id: worker_id, shutdown: :brutal_kill) 
+            generate_spec_for(mod, Map.merge(args, %{:worker_id => worker_id}), name, monitor_kind)
            end)
     end
   end
+
+  defp generate_spec_for(mod, args, name, monitor_kind) do
+    case monitor_kind do
+     :supervisor -> Supervisor.Spec.supervisor(mod, [args], id: name, shutdown: :brutal_kill)
+     _ -> Supervisor.Spec.worker(mod, [args], id: name, shutdown: :brutal_kill)
+    end
+  end 
 
   defp topo_queue_name(name) do
     append_to_id(name, "_topoqueue")
