@@ -22,8 +22,8 @@ defmodule Sturm.TopologyDsl do
   defp create_component_spec(component) do
     case component do
       %Sturm.SourceDef{outs: outs, spec: {name, mod, opts}} -> source_def(name,mod,opts,outs)
-      %Sturm.SinkDef{spec: {name, mod, opts}} -> sink_def(name,mod,opts)
-      %Sturm.WorkerDef{outs: outs, spec: {name, mod, opts}} -> worker_def(name, mod, opts, outs)
+      %Sturm.SinkDef{in_source: in_source, spec: {name, mod, opts}} -> sink_def(name,mod,opts, in_source)
+      %Sturm.WorkerDef{in_source: in_source, outs: outs, spec: {name, mod, opts}} -> worker_def(name, mod, opts, in_source, outs)
     end
   end
 
@@ -59,14 +59,14 @@ defmodule Sturm.TopologyDsl do
     %Sturm.WorkerDef{in_source: in_source, outs: outs, spec: {name, mod, opts}}
   end
 
-  defp worker_def(name, mod, opts, emit_destination) do
-    child_specs = worker_specs(name, mod, opts, emit_destination)
+  defp worker_def(name, mod, opts, in_source, emit_destination) do
+    child_specs = worker_specs(name, mod, opts, in_source, emit_destination)
     id = worker_supervisor_name(name)
     Supervisor.Spec.supervisor(Sturm.WorkerSupervisor, [id, child_specs], id: id)
   end
 
-  defp sink_def(name, mod, opts) do
-    child_specs = sink_specs(name, mod, opts)
+  defp sink_def(name, mod, opts, in_source) do
+    child_specs = sink_specs(name, mod, opts, in_source)
     id = worker_supervisor_name(name)
     Supervisor.Spec.supervisor(Sturm.WorkerSupervisor, [id, child_specs], id: id)
   end
@@ -77,9 +77,10 @@ defmodule Sturm.TopologyDsl do
     Supervisor.Spec.supervisor(Sturm.WorkerSupervisor, [id, child_specs], id: id)
   end
 
-  defp sink_specs(name, mod, opts) do
+  defp sink_specs(name, mod, opts, in_source) do
     count = Keyword.get(opts, :workers, :single)
-    args = %Sturm.WorkerConfig{:options => opts}
+    in_name = {:global, in_source}
+    args = %Sturm.WorkerConfig{:options => opts, :in_source => in_name}
     monitor_kind = Keyword.get(opts, :monitor_as, :worker)
     generate_specs_for_count(count, name, mod, args, monitor_kind)
   end
@@ -92,10 +93,11 @@ defmodule Sturm.TopologyDsl do
     generate_specs_for_count(count, name, mod, args, monitor_kind)
   end
 
-  defp worker_specs(name, mod, opts, out_destination) do
+  defp worker_specs(name, mod, opts, in_source, out_destination) do
     count = Keyword.get(opts, :workers, :single)
+    in_name = {:global, in_source}
     out_names = Enum.map(out_destination, fn(x) -> {:global, x} end)
-    args = %Sturm.WorkerConfig{:out_coordinators => out_names, :options => opts}
+    args = %Sturm.WorkerConfig{:out_coordinators => out_names, :options => opts, :in_source => in_name}
     monitor_kind = Keyword.get(opts, :monitor_as, :worker)
     generate_specs_for_count(count, name, mod, args, monitor_kind)
   end
