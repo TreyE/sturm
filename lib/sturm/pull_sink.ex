@@ -27,7 +27,7 @@ defmodule Sturm.PullSink do
           {:error, new_state} -> requeue_record(coordinator_ns, req, new_state)
         end
         Sturm.PullCoordinator.worker_available(coordinator_ns, %Sturm.PullWorkerDefinition{module: __MODULE__, namespec: my_ns})
-        {:noreply, state_result}
+        {:noreply, Map.merge(my_state, %{state: state_result})}
       end
 
       def requeue_record(coordinator_ns, req, new_state) do
