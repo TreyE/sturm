@@ -11,7 +11,7 @@ defmodule Sturm.PullWorker do
 
   defmacro __using__(_) do 
     quote do
-      using GenServer
+      use GenServer
 
       @behaviour Sturm.PullWorker
 
