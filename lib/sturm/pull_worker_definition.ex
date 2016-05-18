@@ -6,6 +6,6 @@ defmodule Sturm.PullWorkerDefinition do
   def cast_worker(workerspec, coordinator_ns, request) do
     cb_mod = workerspec.module
     ns = workerspec.namespec
-    cb_mod.cast_request(workerspec, %Sturm.WorkRequest{in_source: coordinator_ns, body: request})
+    cb_mod.cast_request(ns, %Sturm.WorkRequest{in_source: coordinator_ns, body: request})
   end
 end
