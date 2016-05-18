@@ -1,3 +1,3 @@
-defmodule WorkState do
+defmodule Sturm.WorkState do
   defstruct [:outs, :state]
 end
