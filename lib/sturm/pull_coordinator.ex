@@ -21,10 +21,6 @@ defmodule Sturm.PullCoordinator do
     GenServer.cast(namespec, {:worker_available, worker_spec})
   end
 
-  def worker_available_first(namespec, worker_spec) do
-    GenServer.call(namespec, {:worker_available, worker_spec})
-  end
-
   @spec request(GenServer.name, request) :: :ok
   def request(namespec, req), do: GenServer.cast(namespec, {:request, req})
 
@@ -48,10 +44,6 @@ defmodule Sturm.PullCoordinator do
   def handle_call({:merge_state, other_state}, _from, {namespec, workers, requests}) do
     {_other_namespec, other_workers, other_requests} = other_state
     {:reply, nil, {namespec, :queue.join(workers, other_workers), :queue.join(requests, other_requests)}}
-  end
-
-  def handle_call({:worker_available, workerspec}, _from, {namespec, workers, requests}) do
-    {:noreply, {namespec, :queue.in(workerspec, workers), requests}}
   end
 
   def handle_cast({:worker_available, workerspec}, {namespec, workers, requests}) do

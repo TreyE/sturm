@@ -12,7 +12,7 @@ defmodule Sturm.TopologyDsl do
   def generate_specs(ins, defs) do
     listeners = Enum.map(ins, &create_queue_spec/1)
     component_specs = Enum.map(defs, &create_component_spec/1)
-    Supervisor.Spec.supervise(component_specs ++ listeners, strategy: :one_for_all)
+    Supervisor.Spec.supervise(listeners ++ component_specs, strategy: :one_for_all)
   end
 
   defp create_queue_spec(in_name) do

@@ -46,7 +46,7 @@ defmodule Sturm.PullSink do
       def start_link(args) do
         case GenServer.start_link(__MODULE__, args, name: args.worker_id) do
           {:ok, pid} -> 
-                      Sturm.PullCoordinator.worker_available_first(args.in_source, %Sturm.PullWorkerDefinition{module: __MODULE__, namespec: pid})
+                      Sturm.PullCoordinator.worker_available(args.in_source, %Sturm.PullWorkerDefinition{module: __MODULE__, namespec: pid})
                       {:ok, pid}
           other -> other
         end
