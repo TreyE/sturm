@@ -13,7 +13,7 @@ defmodule Sturm.CoordinatorEtsBackup do
     table_info = :ets.info(table)
     case table_info do
       :undefined -> 
-        :ets.new(table, [:named_table, {:keypos, 1}])
+        :ets.new(table, [:named_table, :private, {:keypos, 1}])
         :ets.insert(table, {:requests, :queue.new()})
         :ets.insert(table, {:workers, :queue.new()})
       _ -> :do_nothing
