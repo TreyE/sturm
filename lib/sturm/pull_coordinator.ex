@@ -141,6 +141,6 @@ defmodule Sturm.PullCoordinator do
      {:noreply, {namespec}}
   end
 
-  def clean_name({:global, name}), do: name
+  defp clean_name({:global, name}), do: name
 
 end
