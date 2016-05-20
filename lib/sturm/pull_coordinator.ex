@@ -69,7 +69,7 @@ defmodule Sturm.PullCoordinator do
   def handle_cast({:request, req}, {namespec, table_namespec, workers}) do
     case :queue.is_empty(workers) do
       true ->
-         Sturm.EtsFifo.push(req)
+         Sturm.EtsFifo.push(table_namespec, req)
          {:noreply, {namespec, table_namespec, workers}}
       _ -> send_request_to_worker(namespec, req, workers, table_namespec)
     end
