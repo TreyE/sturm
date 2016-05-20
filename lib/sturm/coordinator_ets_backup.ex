@@ -18,7 +18,7 @@ defmodule Sturm.CoordinatorEtsBackup do
         :ets.insert(table, {:workers, :queue.new()})
       _ -> :do_nothing
     end
-    :ets.setopts(table, {:heir, self()})
+    :ets.setopts(table, [{:heir, self()}])
     :ets.give_away(table, pid, {})
     {:noreply, state}
   end
