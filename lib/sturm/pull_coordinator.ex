@@ -61,7 +61,7 @@ defmodule Sturm.PullCoordinator do
     requests = :ets.lookup_element(table_namespec, :requests, 2)
     case :queue.is_empty(requests) do
        true ->
-         {:noreply, {namespec, :queue.in(workerspec, workers)}}
+         {:noreply, {namespec, table_namespec, :queue.in(workerspec, workers)}}
        _ -> call_single_request(namespec, workerspec, requests, workers, table_namespec)
     end
   end
