@@ -12,9 +12,7 @@ defmodule Sturm.CoordinatorEtsBackup do
   def handle_call({:create_table_for, table, pid}, _from, state) do
     table_info = :ets.info(table)
     case table_info do
-      :undefined -> 
-        :ets.new(table, [:named_table, :private, {:keypos, 1}])
-        :ets.insert(table, {:requests, :queue.new()})
+      :undefined -> :ets.new(table, [:named_table, :ordered_set, {:keypos, 1}])
       _ -> :do_nothing
     end
     :ets.setopts(table, [{:heir, self(), {}}])
