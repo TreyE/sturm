@@ -20,7 +20,7 @@ defmodule Sturm.CoordinatorEtsBackup do
     end
     :ets.setopts(table, [{:heir, self(), {}}])
     :ets.give_away(table, pid, {})
-    {:noreply, state}
+    {:reply, :ok, state}
   end
 
   def create_table_for(table, pid) do
