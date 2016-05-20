@@ -24,7 +24,7 @@ defmodule Sturm.CoordinatorEtsBackup do
   end
 
   def create_table_for(table, pid) do
-    GenServer.call({:local, :sturm_coordinators_ets_backup}, {:create_table_for, table, pid})
+    GenServer.call(:sturm_coordinators_ets_backup, {:create_table_for, table, pid})
   end
 
   def start_link do
