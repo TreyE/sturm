@@ -24,10 +24,13 @@ defmodule Sturm.PullCoordinator do
   @spec request(GenServer.name, request) :: :ok
   def request(namespec, req), do: GenServer.cast(namespec, {:request, req})
 
-  def init(namespec), do: {:ok, {namespec, :queue.new(), :queue.new()}}
+  def init(namespec) do
+    Sturm.CoordinatorEtsBackup.create_table_for(namespec, self())
+    {:ok, {namespec}}
+  end
 
   def merge_coordinators(_name, pid_1, pid_2) do
-    other_state = GenServer.call(pid_2, {:get_state})
+    other_state = GenServer.call(pid_2, {:pop_state})
     merge_state(pid_1, other_state)
     GenServer.stop(pid_2)
     pid_1
@@ -37,46 +40,69 @@ defmodule Sturm.PullCoordinator do
     GenServer.call(pid, {:merge_state, other_state})
   end
 
-  def handle_call({:get_state}, _from, my_state) do
-    {:reply, my_state, my_state}
+  def handle_call({:pop_state}, _from, {namespec}) do
+    requests = :ets.lookup_element(namespec, :requests, 2)
+    workers = :ets.lookup_element(namespec, :workers, 2)
+    :ets.delete(namespec, :requests)
+    :ets.delete(namespec, :workers)
+    {:reply, {requests, workers}, {namespec}}
   end
 
-  def handle_call({:merge_state, other_state}, _from, {namespec, workers, requests}) do
-    {_other_namespec, other_workers, other_requests} = other_state
-    {:reply, nil, {namespec, :queue.join(workers, other_workers), :queue.join(requests, other_requests)}}
+  def handle_call({:get_state}, _from, {namespec}) do
+    requests = :ets.lookup_element(namespec, :requests, 2)
+    workers = :ets.lookup_element(namespec, :workers, 2)
+    {:reply, {requests, workers}, {namespec}}
   end
 
-  def handle_cast({:worker_available, workerspec}, {namespec, workers, requests}) do
+  def handle_call({:merge_state, {other_requests, other_workers}}, _from, {namespec}) do
+    requests = :ets.lookup_element(namespec, :requests, 2)
+    workers = :ets.lookup_element(namespec, :workers, 2)
+    :ets.update_element(namespec, :requests, {2, :queue.join(requests, other_requests)})
+    :ets.update_element(namespec, :workers, {2, :queue.join(workers, other_workers)})
+    {:reply, nil, {namespec}}
+  end
+
+  def handle_cast({:worker_available, workerspec}, {namespec}) do
+    requests = :ets.lookup_element(namespec, :requests, 2)
+    workers = :ets.lookup_element(namespec, :workers, 2)
     case :queue.is_empty(requests) do
-       true -> {:noreply, {namespec, :queue.in(workerspec, workers), requests}}
-       _ -> call_single_request(namespec, workerspec, workers, requests)
+       true ->
+         :ets.update_element(namespec, :workers, {2, :queue.in(workerspec, workers)})
+         {:noreply, {namespec}}
+       _ -> call_single_request(namespec, workerspec, requests)
     end
   end
 
-  def handle_cast({:request, req}, {namespec, workers, requests}) do
+  def handle_cast({:request, req}, {namespec}) do
+    requests = :ets.lookup_element(namespec, :requests, 2)
+    workers = :ets.lookup_element(namespec, :workers, 2)
     case :queue.is_empty(workers) do
-      true -> {:noreply, {namespec, workers, :queue.in(req,requests)}}
+      true ->
+         :ets.update_element(namespec, :requests, {2, :queue.in(req, requests)})
+         {:noreply, {namespec}}
       _ -> send_request_to_worker(namespec, req, workers, requests)
     end
   end
 
   defp send_request_to_worker(namespec, req, workers, requests) do
     case :queue.is_empty(requests) do
-       true -> call_single_worker(namespec, req, workers, requests)
+       true -> call_single_worker(namespec, req, workers)
        _ -> call_workers(namespec, req, workers, requests)
     end
   end
 
-  defp call_single_request(namespec, workerspec, workers, requests) do
+  defp call_single_request(namespec, workerspec, requests) do
     {{:value, req}, remaining_requests} = :queue.out(requests)
+     :ets.update_element(namespec, :requests, {2, remaining_requests})
     Sturm.PullWorkerDefinition.cast_worker(workerspec, namespec, req)
-    {:noreply, {namespec, workers, remaining_requests}}
+    {:noreply, {namespec}}
   end
 
-  defp call_single_worker(namespec, req, workers, requests) do
+  defp call_single_worker(namespec, req, workers) do
     {{:value, workerspec}, remaining_workers} = :queue.out(workers)
+    :ets.update_element(namespec, :workers, {2, remaining_workers})
     Sturm.PullWorkerDefinition.cast_worker(workerspec, namespec, req)
-    {:noreply, {namespec, remaining_workers, requests}}
+    {:noreply, {namespec}}
   end
 
   defp call_workers(namespec, req, workers, requests) do
@@ -99,16 +125,20 @@ defmodule Sturm.PullCoordinator do
 
   defp invoke_requests_using_workers(namespec, req, workers, requests, workers_available) do
      {processing_requests, remaining_requests} = :queue.split(workers_available - 1, requests)
+     :ets.update_element(namespec, :requests, {2, remaining_requests})
+     :ets.update_element(namespec, :workers, {2, :queue.new()})
      pairings = Enum.zip(:queue.to_list(workers), :queue.to_list(processing_requests) ++ [req])
      invoke_worker_request_pairings(pairings, namespec)
-     {:noreply, {namespec, :queue.new(), remaining_requests}}
+     {:noreply, {namespec}}
   end
 
   defp invoke_workers_from_requests(namespec, req, workers, requests, requests_to_process) do
      {working_workers, remaining_workers} = :queue.split(requests_to_process, workers)
+     :ets.update_element(namespec, :requests, {2, :queue.new()})
+     :ets.update_element(namespec, :workers, {2, remaining_workers})
      pairings = Enum.zip(:queue.to_list(working_workers), :queue.to_list(requests) ++ [req])
      invoke_worker_request_pairings(pairings, namespec)
-     {:noreply, {namespec, remaining_workers, :queue.new()}}
+     {:noreply, {namespec}}
   end
 
 end
