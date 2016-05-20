@@ -9,7 +9,7 @@ defmodule Sturm.CoordinatorEtsBackup do
     {:noreply, state}
   end
 
-  def handle_call({:create_for, table, pid}, _from, state) do
+  def handle_call({:create_table_for, table, pid}, _from, state) do
     table_info = :ets.info(table)
     case table_info do
       :undefined -> 
