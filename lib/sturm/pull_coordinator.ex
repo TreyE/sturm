@@ -25,8 +25,9 @@ defmodule Sturm.PullCoordinator do
   def request(namespec, req), do: GenServer.cast(namespec, {:request, req})
 
   def init(namespec) do
-    Sturm.CoordinatorEtsBackup.create_table_for(clean_name(namespec), self())
-    {:ok, {namespec, clean_name(namespec), :queue.new()}}
+    init_state =  Sturm.CoordinatorState.from_namespec(namespec)
+    Sturm.CoordinatorEtsBackup.create_table_for(init_state.tablespec, self())
+    {:ok, init_state}
   end
 
   def merge_coordinators(_name, pid_1, pid_2) do
@@ -40,66 +41,69 @@ defmodule Sturm.PullCoordinator do
     GenServer.call(pid, {:merge_state, other_state})
   end
 
-  def handle_call({:pop_state}, _from, {namespec, table_namespec, workers}) do
-    requests = :ets.lookup_element(table_namespec, :requests, 2)
-    :ets.delete(table_namespec, :requests)
-    {:reply, {requests, workers}, {namespec, table_namespec, workers}}
+  def handle_call({:pop_state}, _from, state) do
+    requests = :ets.lookup_element(state.tablespec, :requests, 2)
+    :ets.delete(state.tablespec, :requests)
+    {:reply, {requests, state.workers}, state}
   end
 
-  def handle_call({:get_state}, _from, {namespec, table_namespec, workers}) do
-    requests = :ets.lookup_element(table_namespec, :requests, 2)
-    {:reply, {requests, workers}, {namespec, table_namespec, workers}}
+  def handle_call({:get_state}, _from, state) do
+    requests = :ets.lookup_element(state.tablespec, :requests, 2)
+    {:reply, {requests, state.workers}, state}
   end
 
-  def handle_call({:merge_state, {other_requests, other_workers}}, _from, {namespec, table_namespec, workers}) do
+  def handle_call({:merge_state, {other_requests, other_workers}}, _from, state) do
     Enum.map(other_requests, fn(r) ->
-      Sturm.EtsFifo.push(table_namespec, r)
+      Sturm.EtsFifo.push(state.tablespec, r)
     end)
-    {:reply, nil, {namespec, table_namespec, :queue.join(workers, other_workers)}}
+    updated_state = %{state | workers: :queue.join(state.workers, other_workers)}
+    {:reply, nil, updated_state}
   end
 
-  def handle_cast({:worker_available, workerspec}, {namespec, table_namespec, workers}) do
-    case Sturm.EtsFifo.size(table_namespec) do
+  def handle_cast({:worker_available, workerspec}, state) do
+    case Sturm.EtsFifo.size(state.tablespec) do
        0 ->
-         {:noreply, {namespec, table_namespec, :queue.in(workerspec, workers)}}
-       _ -> call_single_request(namespec, workerspec, workers, table_namespec)
+         updated_state = %{state | workers: :queue.in(workerspec, state.workers)}
+         {:noreply, updated_state}
+       _ -> call_single_request(workerspec, state)
     end
   end
 
-  def handle_cast({:request, req}, {namespec, table_namespec, workers}) do
-    case :queue.is_empty(workers) do
+  def handle_cast({:request, req}, state) do
+    case :queue.is_empty(state.workers) do
       true ->
-         Sturm.EtsFifo.push(table_namespec, req)
-         {:noreply, {namespec, table_namespec, workers}}
-      _ -> send_request_to_worker(namespec, req, workers, table_namespec)
+         Sturm.EtsFifo.push(state.table_namespec, req)
+         {:noreply, state}
+      _ -> send_request_to_worker(req, state)
     end
   end
 
-  defp send_request_to_worker(namespec, req, workers, table_namespec) do
-    case Sturm.EtsFifo.size(table_namespec) do
-       0 -> call_single_worker(namespec, req, workers, table_namespec)
-       _ -> call_workers(namespec, req, workers, table_namespec)
+  defp send_request_to_worker(req, state) do
+    case Sturm.EtsFifo.size(state.tablespec) do
+       0 -> call_single_worker(req, state)
+       _ -> call_workers(req, state)
     end
   end
 
-  defp call_single_request(namespec, workerspec, workers, table_namespec) do
-    req = Sturm.EtsFifo.pop(table_namespec)
-    Sturm.PullWorkerDefinition.cast_worker(workerspec, namespec, req)
-    {:noreply, {namespec, table_namespec, workers}}
+  defp call_single_request(workerspec, state) do
+    req = Sturm.EtsFifo.pop(state)
+    Sturm.PullWorkerDefinition.cast_worker(workerspec, state.namespec, req)
+    {:noreply, state}
   end
 
-  defp call_single_worker(namespec, req, workers, table_namespec) do
-    {{:value, workerspec}, remaining_workers} = :queue.out(workers)
-    Sturm.PullWorkerDefinition.cast_worker(workerspec, namespec, req)
-    {:noreply, {namespec, table_namespec, remaining_workers}}
+  defp call_single_worker(req, state) do
+    {{:value, workerspec}, remaining_workers} = :queue.out(state.workers)
+    Sturm.PullWorkerDefinition.cast_worker(workerspec, state.namespec, req)
+    updated_state = %{state | workers: remaining_workers}
+    {:noreply, updated_state}
   end
 
-  defp call_workers(namespec, req, workers, table_namespec) do
-    workers_available = :queue.length(workers)
-    requests_available = Sturm.EtsFifo.size(table_namespec)
+  defp call_workers(req, state) do
+    workers_available = :queue.length(state.workers)
+    requests_available = Sturm.EtsFifo.size(state.tablespec)
     case (workers_available > requests_available) do
-      true -> invoke_workers_from_requests(namespec, req, workers, requests_available + 1, table_namespec)
-      _ -> invoke_requests_using_workers(namespec, req, workers, workers_available, table_namespec)
+      true -> invoke_workers_from_requests(req, requests_available + 1, state)
+      _ -> invoke_requests_using_workers(req, workers_available, state)
     end
   end
 
@@ -112,23 +116,23 @@ defmodule Sturm.PullCoordinator do
      )
   end
 
-  defp invoke_requests_using_workers(namespec, req, workers, workers_available, table_namespec) do
-     processing_requests = Enum.map((1..(workers_available - 1)), fn(x) ->
-       Sturm.EtsFifo.pop(table_namespec)
+  defp invoke_requests_using_workers(req, workers_available, state) do
+     processing_requests = Enum.map((1..(workers_available - 1)), fn(_) ->
+       Sturm.EtsFifo.pop(state.tablespec)
      end)
-     pairings = Enum.zip(:queue.to_list(workers), processing_requests ++ [req])
-     invoke_worker_request_pairings(pairings, namespec)
-     {:noreply, {namespec, table_namespec, :queue.new()}}
+     pairings = Enum.zip(:queue.to_list(state.workers), processing_requests ++ [req])
+     invoke_worker_request_pairings(pairings, state.namespec)
+     updated_state = %{state | workers: :queue.new()}
+     {:noreply, updated_state}
   end
 
-  defp invoke_workers_from_requests(namespec, req, workers, requests_to_process, table_namespec) do
-     {working_workers, remaining_workers} = :queue.split(requests_to_process, workers)
-     requests = Sturm.EtsFifo.pop_all(table_namespec)
+  defp invoke_workers_from_requests(req, requests_to_process, state) do
+     {working_workers, remaining_workers} = :queue.split(requests_to_process, state.workers)
+     requests = Sturm.EtsFifo.pop_all(state.tablespec)
      pairings = Enum.zip(:queue.to_list(working_workers), requests ++ [req])
-     invoke_worker_request_pairings(pairings, namespec)
-     {:noreply, {namespec, table_namespec, remaining_workers}}
+     invoke_worker_request_pairings(pairings, state.namespec)
+     updated_state = %{state | workers: remaining_workers}
+     {:noreply, updated_state}
   end
-
-  defp clean_name({:global, name}), do: name
 
 end
