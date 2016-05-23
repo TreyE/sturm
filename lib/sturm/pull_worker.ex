@@ -23,11 +23,13 @@ defmodule Sturm.PullWorker do
       end
 
       def handle_cast({:request, {my_ns, coordinator_ns, req}}, my_state) do
-        state_result = case do_work(req, my_state.state) do
+        {_, request} = req
+        state_result = case do_work(request, my_state.state) do
           {:emit, new_state, records} -> emit_records(my_state.outs, records, new_state)
           {:ok, new_state} -> new_state
-          {:error, new_state} -> requeue_record(coordinator_ns, req, new_state)
+          {:error, new_state} -> requeue_record(coordinator_ns, request, new_state)
         end
+        Sturm.PullCoordinator.request_handled(coordinator_ns, req)
         Sturm.PullCoordinator.worker_available(coordinator_ns, %Sturm.PullWorkerDefinition{module: __MODULE__, namespec: my_ns})
         {:noreply, Map.merge(my_state, %{state: state_result})}
       end
