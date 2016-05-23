@@ -86,7 +86,7 @@ defmodule Sturm.PullCoordinator do
   end
 
   defp call_single_request(workerspec, state) do
-    req = Sturm.EtsFifo.pop(state)
+    req = Sturm.EtsFifo.pop(state.tablespec)
     Sturm.PullWorkerDefinition.cast_worker(workerspec, state.namespec, req)
     {:noreply, state}
   end
