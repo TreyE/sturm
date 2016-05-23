@@ -40,7 +40,7 @@ defmodule Sturm.EtsFifo do
   def pop_all(tab) do
     ms = [{String.to_atom("$1"),[],[String.to_atom("$1")]}]
     vals = :ets.select(tab, ms)
-    :ets.delete_all_objets(tab)
+    :ets.delete_all_objects(tab)
     vals
   end
 
