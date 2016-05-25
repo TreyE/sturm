@@ -114,8 +114,8 @@ defmodule Sturm.TopologyDsl do
 
   defp generate_spec_for(mod, args, name, monitor_kind) do
     case monitor_kind do
-     :supervisor -> Supervisor.Spec.supervisor(mod, [args], id: name, shutdown: :brutal_kill)
-     _ -> Supervisor.Spec.worker(mod, [args], id: name, shutdown: :brutal_kill)
+     :supervisor -> Supervisor.Spec.supervisor(mod, [args], id: name)
+     _ -> Supervisor.Spec.worker(mod, [args], id: name)
     end
   end 
 
