@@ -21,8 +21,8 @@ defmodule Sturm.PullCoordinator do
     GenServer.cast(namespec, {:worker_available, worker_spec})
   end
 
-  @spec request(GenServer.name, request) :: :ok
-  def request(namespec, req), do: GenServer.cast(namespec, {:request, req})
+  @spec request(GenServer.name, request, integer | nil) :: :ok
+  def request(namespec, req, retry_count \\ 0), do: GenServer.cast(namespec, {:request, req, retry_count})
 
   def request_handled(namespec, req) do
     GenServer.cast(namespec, {:request_handled, req})
@@ -83,19 +83,19 @@ defmodule Sturm.PullCoordinator do
     end
   end
 
-  def handle_cast({:request, req}, state) do
+  def handle_cast({:request, req, retry_count}, state) do
     case :queue.is_empty(state.workers) do
       true ->
-         Sturm.EtsFifo.push(state.tablespec, req)
+         Sturm.EtsFifo.push(state.tablespec, req, retry_count)
          {:noreply, state}
-      _ -> send_request_to_worker(req, state)
+      _ -> send_request_to_worker(req, state, retry_count)
     end
   end
 
-  defp send_request_to_worker(req, state) do
+  defp send_request_to_worker(req, state, retry_count) do
     case Sturm.EtsFifo.size(state.tablespec) do
-       0 -> call_single_worker(req, state)
-       _ -> call_workers(req, state)
+       0 -> call_single_worker(req, state, retry_count)
+       _ -> call_workers(req, state, retry_count)
     end
   end
 
@@ -105,21 +105,21 @@ defmodule Sturm.PullCoordinator do
     {:noreply, state}
   end
 
-  defp call_single_worker(req, state) do
+  defp call_single_worker(req, state, retry_count) do
     {{:value, workerspec}, remaining_workers} = :queue.out(state.workers)
-    request_record = Sturm.EtsFifo.new_request(state.tablespec, req)
+    request_record = Sturm.EtsFifo.new_request(state.tablespec, req, retry_count)
     Sturm.EtsFifo.insert(state.outstanding_tablespec, request_record)
     Sturm.PullWorkerDefinition.cast_worker(workerspec, state.namespec, request_record)
     updated_state = %{state | workers: remaining_workers}
     {:noreply, updated_state}
   end
 
-  defp call_workers(req, state) do
+  defp call_workers(req, state, retry_count) do
     workers_available = :queue.length(state.workers)
     requests_available = Sturm.EtsFifo.size(state.tablespec)
     case (workers_available > requests_available) do
-      true -> invoke_workers_from_requests(req, requests_available + 1, state)
-      _ -> invoke_requests_using_workers(req, workers_available, state)
+      true -> invoke_workers_from_requests(req, requests_available + 1, state, retry_count)
+      _ -> invoke_requests_using_workers(req, workers_available, state, retry_count)
     end
   end
 
@@ -132,11 +132,11 @@ defmodule Sturm.PullCoordinator do
      )
   end
 
-  defp invoke_requests_using_workers(req, workers_available, state) do
+  defp invoke_requests_using_workers(req, workers_available, state, retry_count) do
      processing_requests = Enum.map((1..(workers_available - 1)), fn(_) ->
        Sturm.EtsFifo.pop_request(state.tablespec, state.outstanding_tablespec)
      end)
-     request_record = Sturm.EtsFifo.new_request(state.tablespec, req)
+     request_record = Sturm.EtsFifo.new_request(state.tablespec, req, retry_count)
      Sturm.EtsFifo.insert(state.outstanding_tablespec, request_record)
      pairings = Enum.zip(:queue.to_list(state.workers), processing_requests ++ [req])
      invoke_worker_request_pairings(pairings, state.namespec)
@@ -144,10 +144,10 @@ defmodule Sturm.PullCoordinator do
      {:noreply, updated_state}
   end
 
-  defp invoke_workers_from_requests(req, requests_to_process, state) do
+  defp invoke_workers_from_requests(req, requests_to_process, state, retry_count) do
      {working_workers, remaining_workers} = :queue.split(requests_to_process, state.workers)
      requests = Sturm.EtsFifo.pop_all_requests(state.tablespec, state.outstanding_tablespec)
-     request_record = Sturm.EtsFifo.new_request(state.tablespec, req)
+     request_record = Sturm.EtsFifo.new_request(state.tablespec, req, retry_count)
      Sturm.EtsFifo.insert(state.outstanding_tablespec, request_record)
      pairings = Enum.zip(:queue.to_list(working_workers), requests ++ [request_record])
      invoke_worker_request_pairings(pairings, state.namespec)
