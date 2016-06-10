@@ -29,6 +29,8 @@ defmodule Sturm.PullSink do
           end
         rescue
           _ -> {:error, my_state.state}
+        catch
+          :exit, _ -> {:error, my_state.state}
         end
       end
 
