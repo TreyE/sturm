@@ -23,7 +23,7 @@ defmodule Sturm.EtsFifo do
   end
 
   def pop_request(tab, outstanding_tab) do
-    [obj] = :ets.take(tab, :ets.last(tab))
+    [obj] = :ets.take(tab, :ets.first(tab))
     insert(outstanding_tab, obj)
     obj
   end
