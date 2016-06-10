@@ -22,9 +22,13 @@ defmodule Sturm.PullSink do
       end
 
       defp check_retries(request, retry_count, my_state) do
-        case (retry_count > my_state.retries) do
-          true -> {:too_many_retries, my_state.state}
-          _ -> do_work(request, my_state.state)
+        try do
+          case (retry_count > my_state.retries) do
+            true -> {:too_many_retries, my_state.state}
+            _ -> do_work(request, my_state.state)
+          end
+        rescue
+          :error, x -> {:error, my_state.state}
         end
       end
 
