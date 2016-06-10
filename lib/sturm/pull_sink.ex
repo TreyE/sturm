@@ -27,8 +27,8 @@ defmodule Sturm.PullSink do
             true -> {:too_many_retries, my_state.state}
             _ -> do_work(request, my_state.state)
           end
-        catch
-          :error, x -> {:error, my_state.state}
+        rescue
+          _ -> {:error, my_state.state}
         end
       end
 

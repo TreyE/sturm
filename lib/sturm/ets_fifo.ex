@@ -10,7 +10,7 @@ defmodule Sturm.EtsFifo do
     Keyword.get(:ets.info(tab), :size, 0)
   end
 
-  def push(tab, item, retry_count \\ 0) do
+  def push(tab, item, retry_count) do
     :ets.insert(tab, {new_request_key(tab), item, retry_count})
   end
 
@@ -28,7 +28,7 @@ defmodule Sturm.EtsFifo do
     obj
   end
 
-  def new_request(tab, req, retry_count \\ 0) do
+  def new_request(tab, req, retry_count) do
     {new_request_key(tab), req, retry_count} 
   end
 
