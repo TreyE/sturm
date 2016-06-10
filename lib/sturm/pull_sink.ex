@@ -22,7 +22,7 @@ defmodule Sturm.PullSink do
       end
 
       def handle_cast({:request, {my_ns, coordinator_ns, req}}, my_state) do
-        {_, request} = req
+        {_, request, retry_count} = req
         state_result = case do_work(request, my_state.state) do
           {:ok, new_state} -> new_state
           {:error, new_state} -> requeue_record(coordinator_ns, request, new_state)

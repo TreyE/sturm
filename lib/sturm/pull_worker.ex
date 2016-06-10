@@ -23,7 +23,7 @@ defmodule Sturm.PullWorker do
       end
 
       def handle_cast({:request, {my_ns, coordinator_ns, req}}, my_state) do
-        {_, request} = req
+        {_, request, retry_count} = req
         state_result = case do_work(request, my_state.state) do
           {:emit, new_state, records} -> emit_records(my_state.outs, records, new_state)
           {:ok, new_state} -> new_state
