@@ -1,3 +1,3 @@
 defmodule Sturm.WorkState do
-  defstruct [:outs, :state]
+  defstruct [:outs, :state, retries: 5]
 end

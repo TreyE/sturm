@@ -22,9 +22,17 @@ defmodule Sturm.PullWorker do
         end
       end
 
+      defp check_retries(request, retry_count, my_state) do
+        case (retry_count > my_state.retries) do
+          true -> {:too_many_retries, new_state}
+          _ -> do_work(request, mystate.state)
+        end
+      end
+
       def handle_cast({:request, {my_ns, coordinator_ns, req}}, my_state) do
         {_, request, retry_count} = req
-        state_result = case do_work(request, my_state.state) do
+        state_result = case check_retries(request, retry_count, my_state) do
+          {:too_many_retries, new_state} -> new_state
           {:emit, new_state, records} -> emit_records(my_state.outs, records, new_state)
           {:ok, new_state} -> new_state
           {:error, new_state} -> requeue_record(coordinator_ns, request, new_state, retry_count + 1)
