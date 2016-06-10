@@ -25,15 +25,15 @@ defmodule Sturm.PullSink do
         {_, request, retry_count} = req
         state_result = case do_work(request, my_state.state) do
           {:ok, new_state} -> new_state
-          {:error, new_state} -> requeue_record(coordinator_ns, request, new_state)
+          {:error, new_state} -> requeue_record(coordinator_ns, request, new_state, retry_count + 1)
         end
         Sturm.PullCoordinator.request_handled(coordinator_ns, req)
         Sturm.PullCoordinator.worker_available(coordinator_ns, %Sturm.PullWorkerDefinition{module: __MODULE__, namespec: my_ns})
         {:noreply, Map.merge(my_state, %{state: state_result})}
       end
 
-      def requeue_record(coordinator_ns, req, new_state) do
-        Sturm.PullCoordinator.request(coordinator_ns, req)
+      def requeue_record(coordinator_ns, req, new_state, retry_count) do
+        Sturm.PullCoordinator.request(coordinator_ns, req, retry_count)
         new_state
       end
 
