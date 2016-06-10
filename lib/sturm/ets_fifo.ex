@@ -1,7 +1,7 @@
 defmodule Sturm.EtsFifo do
   def new_request_key(tab) do
     ts = :os.timestamp()
-    ms = [{{{ts,String.to_atom("_")},String.to_atom("_")},[],[true]}]
+    ms = [{{{ts,String.to_atom("_")},:"_",:"_"},[],[true]}]
     highest_number = :ets.select_count(tab, ms)
     {ts, highest_number + 1}
   end
@@ -10,15 +10,15 @@ defmodule Sturm.EtsFifo do
     Keyword.get(:ets.info(tab), :size, 0)
   end
 
-  def push(tab, item) do
-    :ets.insert(tab, {new_request_key(tab), item})
+  def push(tab, item, retry_count \\ 0) do
+    :ets.insert(tab, {new_request_key(tab), item, retry_count})
   end
 
   def insert(tab, rec) do
     :ets.insert(tab, rec)
   end
 
-  def delete(tab, {key, _}) do
+  def delete(tab, {key, _, _}) do
     :ets.delete(tab, key)
   end
 
@@ -28,8 +28,8 @@ defmodule Sturm.EtsFifo do
     obj
   end
 
-  def new_request(tab, req) do
-    {new_request_key(tab), req} 
+  def new_request(tab, req, retry_count \\ 0) do
+    {new_request_key(tab), req, retry_count} 
   end
 
   def select_all(tab) do
