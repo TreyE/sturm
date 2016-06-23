@@ -115,7 +115,7 @@ defmodule Sturm.PullCoordinator do
   end
 
   defp call_workers(req, state, retry_count) do
-    workers_available = :queue.length(state.workers)
+    workers_available = :queue.len(state.workers)
     requests_available = Sturm.EtsFifo.size(state.tablespec)
     case (workers_available > requests_available) do
       true -> invoke_workers_from_requests(req, requests_available + 1, state, retry_count)
