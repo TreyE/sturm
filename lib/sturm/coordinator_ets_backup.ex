@@ -13,7 +13,7 @@ defmodule Sturm.CoordinatorEtsBackup do
     table_info = :ets.info(table)
     case table_info do
       :undefined -> :ets.new(table, [:named_table, :ordered_set, {:keypos, 1}])
-      _ -> :do_nothing
+      _ -> :ok
     end
     :ets.setopts(table, [{:heir, self(), {}}])
     :ets.give_away(table, pid, {})
@@ -25,6 +25,6 @@ defmodule Sturm.CoordinatorEtsBackup do
   end
 
   def start_link do
-    GenServer.start_link(__MODULE__, [], name: {:local, :sturm_coordinators_ets_backup})
+    GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
 end

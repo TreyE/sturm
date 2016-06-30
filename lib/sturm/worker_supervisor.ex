@@ -2,7 +2,7 @@ defmodule Sturm.WorkerSupervisor do
   use Supervisor
 
   def start_link(s_id, arg) do
-    Supervisor.start_link(__MODULE__, arg, id: s_id)
+    Supervisor.start_link(__MODULE__, arg, name: s_id)
   end
 
   def init(arg) do
